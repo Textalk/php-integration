@@ -1,10 +1,10 @@
 <?php
+namespace Svea;
 
 require_once SVEA_REQUEST_DIR . '/WebServiceRequests/svea_soap/SveaSoapConfig.php';
 require_once SVEA_REQUEST_DIR . '/Config/SveaConfig.php';
 
 /* *
- * Description of WebServicePayment
  * Parent to InvoicePayment and PaymentPlanPaymentHandles class
  * Prepares and sends $order with php SOAP
  * Uses svea_soap package to build object formatted for SveaWebPay Europe Web service API
@@ -22,49 +22,30 @@ class WebServicePayment {
         $this->order = $order;
     }
 
-    /** deprecated
-     * Alternative drop or change file in Config/SveaConfig.php
-     * Note! This fuction may change in future updates.
-     * @param type $merchantId
-     * @param type $secret
-
-    public function setPasswordBasedAuthorization($username, $password, $clientNumber) {
-        $this->order->conf->username = $username;
-        $this->order->conf->password = $password;
-        if ($this->orderType == "Invoice") {
-            $this->order->conf->invoiceClientnumber = $clientNumber;
-        } else {
-            $this->order->conf->paymentPlanClientnumber = $clientNumber;
-        }
-        return $this;
-    }
-     *
-     * @return \SveaAuth
-     */
-
     private function getPasswordBasedAuthorization() {
        // $authArray = $this->order->conf->getPasswordBasedAuthorization($this->orderType);
         $auth = new SveaAuth();
-        $auth->Username = $this->order->conf->getUsername($this->orderType,  $this->order->countryCode);//$authArray['username'];
-        $auth->Password = $this->order->conf->getPassword($this->orderType,  $this->order->countryCode);//$authArray['password'];
-        $auth->ClientNumber = $this->order->conf->getClientNumber($this->orderType,  $this->order->countryCode); //$authArray['clientnumber'];
+        $auth->Username = $this->order->conf->getUsername($this->orderType,  $this->order->countryCode);
+        $auth->Password = $this->order->conf->getPassword($this->orderType,  $this->order->countryCode);
+        $auth->ClientNumber = $this->order->conf->getClientNumber($this->orderType,  $this->order->countryCode);
         return $auth;
     }
 
-    public function validateOrder(){
+    public function validateOrder() {
         $this->order->orderType = $this->orderType;
          $validator = new WebServiceOrderValidator();
          $errors = $validator->validate($this->order);
          return $errors;
     }
 
-        /**
+    /**
      * Rebuild $order with svea_soap package to be in right format for SveaWebPay Europe Web service API
      * @return prepared SveaRequest
+     * @throws ValidationException
      */
     public function prepareRequest() {
         $errors = $this->validateOrder();
-        if(count($errors) > 0){
+        if (count($errors) > 0) {
             $exceptionString = "";
             foreach ($errors as $key => $value) {
                 $exceptionString .="-". $key. " : ".$value."\n";
@@ -77,9 +58,9 @@ class WebServicePayment {
         //make orderrows and put in CreateOrderInfromation
         $orderinformation = $this->formatOrderInformationWithOrderRows($this->order->orderRows);
         //paralell ways of crateing customer
-        if(isset($this->order->customerIdentity)){
+        if (isset($this->order->customerIdentity)) {
             $orderinformation->CustomerIdentity = $this->formatCustomerDetails();
-        }  else {
+        } else {
             $orderinformation->CustomerIdentity = $this->formatCustomerIdentity();
         }
 
@@ -99,16 +80,18 @@ class WebServicePayment {
 
     /**
      * Transforms object to array and sends it to SveaWebPay Europe Web service API by php SoapClient
-     * @return CreateOrderEuResponse
+     * @return CreateOrderEuResponse 
+     * @throws ValidationException
      */
     public function doRequest() {
+
         $object = $this->prepareRequest();
-        $url = $this->order->conf->getEndPoint($this->orderType); //$this->order->testmode ? SveaConfig::SWP_TEST_WS_URL : SveaConfig::SWP_PROD_WS_URL;
+        $url = $this->order->conf->getEndPoint($this->orderType);
         $request = new SveaDoRequest($url);
         $svea_req = $request->CreateOrderEu($object);
 
-        $response = new SveaResponse($svea_req,"");
-        return $response->response;
+        $response = new \SveaResponse($svea_req,"");
+        return $response->getResponse();                    // returns a specific type of response object created in SveaResponse
     }
 
     /**
@@ -137,7 +120,7 @@ class WebServicePayment {
     private function formatCustomerIdentity() {
         $isCompany = false;
         $companyId ="";
-        if(isset($this->order->orgNumber)||isset($this->order->companyVatNumber)){
+        if (isset($this->order->orgNumber)||isset($this->order->companyVatNumber)) {
             $isCompany = true;
             $companyId = isset($this->order->orgNumber) ? $this->order->orgNumber : $this->order->companyVatNumber;
         }
@@ -175,7 +158,7 @@ class WebServicePayment {
 
         if ($isCompany) {
             $individualCustomerIdentity->FullName = isset($this->order->companyName) ? $this->order->companyName : "";
-        }  else {
+        } else {
             $individualCustomerIdentity->FullName = isset($this->order->firstname) && isset($this->order->lastname) ? $this->order->firstname. ' ' .$this->order->lastname : "";
         }
 
@@ -193,16 +176,17 @@ class WebServicePayment {
 
         return $individualCustomerIdentity;
     }
-/**
- * new! If CustomerIdentity is crated by addCustomerDetails()
- * @return \SveaCustomerIdentity
- */
+    
+    /**
+     * new! If CustomerIdentity is crated by addCustomerDetails()
+     * @return \SveaCustomerIdentity
+     */
     public function formatCustomerDetails() {
         $isCompany = false;
-        get_class($this->order->customerIdentity) == "CompanyCustomer" ? $isCompany = TRUE : $isCompany = FALSE;
+        get_class($this->order->customerIdentity) == "Svea\CompanyCustomer" ? $isCompany = TRUE : $isCompany = FALSE;
 
         $companyId ="";
-        if(isset($this->order->customerIdentity->orgNumber)||isset($this->order->customerIdentity->companyVatNumber)){
+        if (isset($this->order->customerIdentity->orgNumber)||isset($this->order->customerIdentity->companyVatNumber)) {
             $isCompany = true;
             $companyId = isset($this->order->customerIdentity->orgNumber) ? $this->order->customerIdentity->orgNumber : $this->order->customerIdentity->companyVatNumber;
         }
@@ -240,7 +224,7 @@ class WebServicePayment {
 
         if ($isCompany) {
             $individualCustomerIdentity->FullName = isset($this->order->customerIdentity->companyName) ? $this->order->customerIdentity->companyName : "";
-        }  else {
+        } else {
             $individualCustomerIdentity->FullName = isset($this->order->customerIdentity->firstname) && isset($this->order->customerIdentity->lastname) ? $this->order->customerIdentity->firstname. ' ' .$this->order->customerIdentity->lastname : "";
         }
 

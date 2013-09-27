@@ -1,10 +1,10 @@
 <?php
+namespace Svea;
 
 /**
  * Autoload all classes
  */
-if (!defined('SVEA_DIR'))
-    define('SVEA_DIR', dirname(__DIR__));
+
 if (!defined('SVEA_REQUEST_DIR'))
     define('SVEA_REQUEST_DIR', dirname(__FILE__));
 
@@ -18,6 +18,8 @@ foreach (glob(SVEA_REQUEST_DIR . "/BuildOrder/RowBuilders/*.php") as $config)
     include_once($config);
 
 foreach (glob(SVEA_REQUEST_DIR . "/HostedRequests/Payment/*.php") as $config)
+    include_once($config);
+foreach (glob(SVEA_REQUEST_DIR . "/HostedRequests/HandleOrder/*.php") as $config)
     include_once($config);
 foreach (glob(SVEA_REQUEST_DIR . "/HostedRequests/Helper/*.php") as $config)
     include_once($config);
